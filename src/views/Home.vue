@@ -34,12 +34,16 @@
         <el-col :span="10">
           <div class="grid-content bg-purple-left">
             <div class="bg-purple-left-top">
-              <div @click="getName(arr.name,arr.type)" v-for="(arr,index) in lefttop" :key="index">
+              <div @click="getName(arr.name,arr.type,arr.num)" v-for="(arr,index) in lefttop" :key="index">
                 <p>{{arr.name}}</p>
                 <p><span>{{arr.num}}</span> <span class="unit">{{arr.unit}}</span></p>
               </div>
             </div>
             <div  class="bg-purple-left-map">
+              <div class="mapBoxtips">
+                <p>防火单位</p>
+                <p class="num">{{spots.length}}</p>
+              </div>
               <div id="mapBox"></div>
             </div>
           </div>
@@ -48,21 +52,17 @@
         <el-col :span="7">
           <div class="grid-content bg-purple-cneter">
             <div class="bg-purple-top-title">
-              {{center_title}}
+              <div>{{center_title}}</div>
             </div>
             <div class="bg-purple-top-content">
-              <el-scrollbar v-if="UrgeList.length>0" style="overflow: hidden;height:100%">
+                <el-scrollbar v-if="UrgeList.length>0" style="overflow: hidden;height:100%">
                   <div class="bg-purple-top-content-item" v-for="(arr,index)  in UrgeList" :key="index">
                     <p>【防火单位】{{arr.fireUnitName}}</p>
                     <p>【单位地址】{{arr.fireUnitAddress}}</p>
                     <p>【联系人】{{arr.fireUnitContractUser}} <a v-if="center_title !== '物联终端离线'" @click="urge(arr.fireUnitId,arr.operateUrgeType)" style="margin-left:70px" href="#">督促处理</a></p>
                     <p class="total">{{arr.overdueRemark}}</p>
                   </div>
-              </el-scrollbar>
-              <div v-else>
-                暂无数据
-              </div>
-               
+                </el-scrollbar>
             </div>
           </div>
         </el-col>
@@ -70,14 +70,14 @@
         <el-col :span="7">
           <div class="grid-content bg-purple-right">
             <div class="bg-purple-top-title">
-              督促处理
+              <div>督促处理</div>
             </div>
-            <div v-if="click" class="bg-purple-top-content">
+            <div v-if="ischeckinfo" class="bg-purple-top-content">
               <div class="fireInfo">
                 <div class="display fireInfo_top">
                   <el-image 
                     style="width: 120px; height: 120px"
-                    :src="url" 
+                    :src="urgeDetail.fireUnitPicture" 
                     :preview-src-list="srcList">
                   </el-image>
                   <div class="fireInfo_top_right">
@@ -98,7 +98,7 @@
               <div class="check_fireInfo">
                 <el-form ref="form" :model="urgeDetail" label-width="120px">
                   <el-form-item label="【活动名称】">
-                    <p>火警联网未核</p>
+                    <p>{{right_typeName}}</p>
                   </el-form-item>
                   <el-form-item label="【督促方式】">
                     <el-radio-group @change="radiochange" v-model="urgeDetail.operateUrgeChannel">
@@ -106,20 +106,20 @@
                       <el-radio :label="2">电话</el-radio>
                     </el-radio-group>
                   </el-form-item>
-                  <el-form-item v-if="messageBoxShow" label="【接收手机】">
+                  <el-form-item v-if="urgeDetail.operateUrgeChannel == 1" label="【接收手机】">
                     <el-input v-model="urgeDetail.msgPhone"></el-input>
                   </el-form-item>
-                  <el-input v-if="messageBoxShow"  rows="6" type="textarea" v-model="urgeDetail.msgContent"></el-input>
+                  <el-input v-if="urgeDetail.operateUrgeChannel == 1"  rows="6" type="textarea" v-model="urgeDetail.msgContent"></el-input>
 
                  <div class="btnbox">
                    <el-button @click="send" type="success">发送</el-button>
-                    <el-button type="info">取消</el-button>
+                    <el-button type="info" @click="ischeckinfo = false">取消</el-button>
                  </div>
                     
                 </el-form>
               </div>
             </div>
-            <!--  -->
+            
             <div v-else class="bg-purple-top-content">
               <div class="protect_icon_box">
                 <img src="../assets/images/home/protect.png" alt="">
@@ -141,9 +141,11 @@
         </el-col>
       </el-row>
     </el-main>
+    <!--  -->
     <UnitReport ref="unitReport"></UnitReport>
     <OperationReport ref="operationReport"></OperationReport>
     <WorkSet ref="workset"></WorkSet>
+    <MapUnitReport ref="MapUnitReport"></MapUnitReport>
   </el-container>
 </template>
 
@@ -152,6 +154,7 @@ import AMap from 'AMap'
 import UnitReport from '../components/UnitReport.vue'
 import OperationReport from '../components/OperationReport.vue'
 import WorkSet from '../components/WorkSet.vue'
+import MapUnitReport from '../components/MapUnitReport.vue'
 // @ is an alias to /src
 
 let moment = require('moment')
@@ -160,7 +163,8 @@ export default {
   components:{
     UnitReport,
     OperationReport,
-    WorkSet
+    WorkSet,
+    MapUnitReport
   },
   data(){
     return{
@@ -175,7 +179,7 @@ export default {
         },
         {
           name:'消防设施故障',
-          unit:'个',
+          unit:'件',
           num:0,
           type:2
         },
@@ -199,19 +203,17 @@ export default {
         },
         {
           name:'物联终端离线',
-          unit:'件',
+          unit:'个',
           num:0,
           type:6
         },
       ],
       center_title:'火警联网未核',//中间title文字
+      urgeType:1,//
+      right_typeName:'火警联网未核',//右侧活动名称
       mapObj:'',//地图对象
       UrgeList:[],
-      url: 'https://fuss10.elemecdn.com/e/5d/4a731a90594a4af544c0c25941171jpeg.jpeg',
-      srcList: [
-        'https://fuss10.elemecdn.com/8/27/f01c15bb73e1ef3793e64e6b7bbccjpeg.jpeg',
-        'https://fuss10.elemecdn.com/1/8e/aeffeb4de74e2fde4bd74fc7b4486jpeg.jpeg'
-      ],
+      srcList: [],
       form: {
           name: '',
           region: '',
@@ -222,17 +224,17 @@ export default {
           resource: '短信',
           desc: ''
       },
-      urgeDetail:{
-
-      },//督促详情
-      click:false,
+      urgeDetail:{},//督促详情
+      ischeckinfo:false,
       messageBoxShow:true,//发送短信的盒子是否显示，true显示，false隐藏
       UrgeChannelNum:{
         messageTodayNum:0,
         messageTotalNum:0,
         phonecallTodayNum:0,
         phonecallTotalNum:0,
-      }
+      },
+      spots:'',
+      infoWindow:''
       
     }
   },
@@ -243,7 +245,8 @@ export default {
     this.GetUrgeChannelNum();
   },
   mounted(){
-    this.initMap();
+    this.initMap(); 
+    this.makeMark();
   },
   methods:{
     getNowTime(){
@@ -258,7 +261,7 @@ export default {
     },
     //运营报告
     operationReport(){
-      this.$refs.operationReport.show = true
+      this.$refs.operationReport.GetOperateReport();
     },
     //工作设置
     workset(){
@@ -276,25 +279,21 @@ export default {
       })
     },
     //
-    getName(name,type){
-      console.log(name)
+    getName(name,type,num){
+      if(num == 0 ){
+        return
+      }
+      console.log(name);
+      this.ischeckinfo = false;
       this.center_title = name;
+      this.urgeType = type;
       this.GetUrgeList(type)
-    },
-    //获取督促处理列表
-    GetUrgeList(type){
-      this.$axios.get(this.$api.GetUrgeList,
-        {params:{OperateUrgeType:type,OperateCenterId:this.OperateCenterId }}
-      ).then(res=>{
-        console.log("获取督促处理列表",res)
-        this.UrgeList = res.result
-      })
     },
     //初始化地图
     initMap(){
         this.mapObj = new AMap.Map('mapBox', {
             resizeEnable: true, //自适应大小
-            zoom: 8,//初始视窗
+            zoom: 9,//初始视窗
             center:[this.$store.state.userInfo.lng,this.$store.state.userInfo.lat],
             layers: [
               // 卫星
@@ -306,7 +305,7 @@ export default {
         setTimeout(() => {
                 this.setarea();
 
-                this.makeMark();
+                // this.makeMark();
         });
     },
     //行政区规划
@@ -347,73 +346,141 @@ export default {
     },
     //地图标记点
     makeMark(){
-            let that = this;
-            this.$axios.get(this.$api.GetFireUnitForMap, 
-                {params: { operateCenterId: this.operateCenterId }}
-            ).then(res=>{
-                console.log("获取的点位",res)
-                //过滤要显示为红点的
-                let redspotArray =[];
-                // redspotArray = res.result.filter(item=>item.existTrueFireAlarm ==true)
-                // //过滤不显示为红点的
-                // this.spots =res.result.filter(item=>item.existTrueFireAlarm ==false)
-                // // console.log("redspotArray", this.spots)
-                // let spotArray = [],spotArrayRed=[];
-                // for (let item of  this.spots) {
-                //     spotArray.push({
-                //     lnglat: [item.lng, item.lat], //点标记位置
-                //     id: item.fireunitId
-                //     });
-                // }
-                // for (let item2 of  redspotArray) {
-                //     spotArrayRed.push({
-                //         lnglat: [item2.lng, item2.lat], //点标记位置
-                //         id: item2.fireunitId
-                //     });
-                // }
+      this.$axios.get(this.$api.GetFireUnitForMap,
+        {params:{operateCenterId:this.OperateCenterId}}
+      ).then(res=>{
+        console.log("获取的点位",res)
+        this.spots =res.result;
+        let spotArray =[];
+        let icon = new AMap.Icon({
+          size: new AMap.Size(40, 50), // 图标尺寸
+          image:
+            "//datav.oss-cn-hangzhou.aliyuncs.com/uploads/images/32a60b3e7d599f983aa1a604fb640d7e.gif" // Icon的图像
+        });
+        for (let item of  this.spots) {
+            let marker = new AMap.Marker({
+                position: new AMap.LngLat(item.lng, item.lat), // 经纬度对象，也可以是经纬度构成的一维数组[116.39, 39.9]
+                title: item.fireunitId,
+                offset: new AMap.Pixel(-10, -10),
+                icon: icon
+            });
+            marker.item = item; // 自定义参数
+            marker.on('click',this.getMapMarkInfo)
+            spotArray.push(marker);
+        }
+        this.mapObj.add(spotArray);
+      })    
+    },
+    //点击地图点
+    getMapMarkInfo(item){
+      console.log("dianji",item);
+      let Id = item ? item.target.item.fireUnitId: "";
+      this.$axios.get(this.$api.GetFireUnitInfo,
+        {params:{UserId:this.$store.state.userInfo.userId,Id}}
+      ).then(res=>{
+        console.log("防火单位res",res);
+        res.result.creationTime = this.dealTime(res.result.creationTime)
+        var title = res.result.name,
+        content=[];
+        content.push(`【具体地址】${res.result.address}`);
+        content.push(`【联网时间】${res.result.creationTime}`);
+        this.infoWindow = new AMap.InfoWindow({  
+            isCustom: true,  //使用自定义窗体
+            content: this.createInfoWindow(title, content.join("<br/>"),res.result.id),
+            offset: new AMap.Pixel(16, -45)
+        }); 
+        this.infoWindow.open(this.mapObj, [item.target.item.lng,item.target.item.lat]);
+      })
+    },
+    createInfoWindow(title, content,fID) {
+            var info = document.createElement("div");
+            info.className = "custom-info input-card content-window-card";
 
-                // let style = [
-                //     {
-                //         url:require('../assets/blue_mark1.png'),
-                //         anchor: new AMap.Pixel(16, 26),
-                //         size: new AMap.Size(32, 36)
-                //     }
-                // ],
-                // redstyle =[{
-                //     url:require('../assets/red_mark.png'),
-                //     anchor: new AMap.Pixel(16, 26),
-                //     size: new AMap.Size(32, 36)
-                // }];
-                // let mass = new AMap.MassMarks(spotArray, {
-                //     opacity: 0.8,
-                //     zIndex: 111,
-                //     cursor: "pointer",
-                //     style: style
-                // });
-                // let massRed = new AMap.MassMarks(spotArrayRed, {
-                //     opacity: 0.8,
-                //     zIndex: 112,
-                //     cursor: "pointer",
-                //     style: redstyle
-                // });
-                // mass.on("click",this.getMapMarkInfo);
-                // mass.setMap(that.map);
-                // massRed.setMap(that.map);
-                // massRed.on("click",this.getMapMarkInfo);
-            })
-      },
+            //可以通过下面的方式修改自定义窗体的宽高
+            //info.style.width = "400px";
+            // 定义顶部标题
+            var top = document.createElement("div");
+            var titleD = document.createElement("div");
+            var closeX = document.createElement("img");
+            top.className = "info-top";
+            titleD.innerHTML = title;
+            closeX.src = "https://webapi.amap.com/images/close2.gif";
+            closeX.onclick = this.closeInfoWindow;
 
+            top.appendChild(titleD);
+            top.appendChild(closeX);
+            info.appendChild(top);
+
+            // 定义中部内容
+            var middle = document.createElement("div");
+            middle.className = "info-middle";
+            middle.style.backgroundColor = 'white';
+            middle.innerHTML = content;
+
+            let reportDiv = document.createElement('div')
+            reportDiv.innerText = '智慧消防数据综合报告';
+            reportDiv.style.textAlign="center"
+            reportDiv.style.color="rgb(91, 183, 245)"
+            reportDiv.style.cursor="pointer"
+            reportDiv.style.textDecoration = 'line'
+            reportDiv.style.borderBottom = '1px solid rgb(91, 183, 245)'
+            reportDiv.onclick=()=>{
+                this.openReportDialog(fID)
+            }
+            middle.appendChild(reportDiv)
+            info.appendChild(middle);
+
+            // 定义底部内容
+            var bottom = document.createElement("div");
+            bottom.className = "info-bottom";
+            bottom.style.position = 'relative';
+            bottom.style.top = '0px';
+            bottom.style.margin = '0 auto';
+            var sharp = document.createElement("img");
+            sharp.src = "https://webapi.amap.com/images/sharp.png";
+            bottom.appendChild(sharp);
+            info.appendChild(bottom);
+            return info;
+    },
+    //关闭弹窗
+    closeInfoWindow() {
+            // console.log("关闭")
+            this.infoWindow.close();
+    },
+    openReportDialog(fID){
+      this.$refs.MapUnitReport.perWeek(fID)
+    },
+    dealTime(data){
+        var str = data.split('T');
+        var str2 = str[1].split(".")
+        var timestr = str[0] +" "+ str2[0]
+        return timestr;
+    },
+    //获取督促处理列表
+    GetUrgeList(type){
+      this.$axios.get(this.$api.GetUrgeList,
+        {params:{OperateUrgeType:type,OperateCenterId:this.OperateCenterId }}
+      ).then(res=>{
+        console.log("获取督促处理列表",res)
+        this.UrgeList = res.result
+      })
+    },
     //督促点击
     urge(id,type){
-      this.click = true;
+      this.right_typeName = this.center_title;
+      this.ischeckinfo = true;
       this.$axios.get(this.$api.GetUrgeDetail,
         {params:{OperateCenterId:this.OperateCenterId,FireUnitId :id,OperateUrgeType :type}}
       ).then(res=>{
         console.log("获取详情",res)
-        this.urgeDetail = res.result
+        this.srcList =[]
+        this.srcList.push(res.result.fireUnitPicture)
+        this.urgeDetail = res.result;
+        this.$set(this.urgeDetail, 'operateUrgeChannel', 1)
+        this.$set(this.urgeDetail, 'msgPhone', res.result.contractPhone)
       })
     },
-    //
+    //radio选择
     radiochange(index){
       console.log("radiochange",index)
       if(index == '电话'){
@@ -422,14 +489,36 @@ export default {
         this.messageBoxShow = true;
       }
     },
-    //
+    //提交督促处理
     send(){
-      this.click = false
+      let SubmitUrgeForm = {};
+      SubmitUrgeForm.fireUnitId = this.urgeDetail.fireUnitId
+      SubmitUrgeForm.operateUrgeChannel = this.urgeDetail.operateUrgeChannel
+      SubmitUrgeForm.operateCenterUserId = this.$store.state.userInfo.userId
+      SubmitUrgeForm.operateCenterId = this.OperateCenterId
+      SubmitUrgeForm.msgPhone = this.urgeDetail.msgPhone
+      SubmitUrgeForm.msgContent = this.urgeDetail.msgContent
+      this.$axios.post(this.$api.SubmitUrge,SubmitUrgeForm).then(res=>{
+        console.log("提交督促处理",res)
+        this.$message({
+          message: '发送成功',
+          type: 'success'
+        });
+        setTimeout(()=>{
+          this.ischeckinfo = false;
+        },1000)
+        
+        this.GetUrgeList(this.urgeType)
+        this.GetUrgeChannelNum();
+      }).catch(err=>{
+        console.log("提交督促处理失败",err)
+        this.$message.error(err.error.message);
+      })
     },
     //获取督促方式的次数统计
     GetUrgeChannelNum(){
       this.$axios.get(this.$api.GetUrgeChannelNum,
-        {params:{operateCenterId:this.operateCenterId}}
+        {params:{operateCenterId:this.OperateCenterId}}
       ).then(res=>{
         console.log("获取督促方式的次数统计",res)
         this.UrgeChannelNum.messageTodayNum = res.result[0].todayNum
@@ -515,16 +604,12 @@ export default {
 
   }
   .el-main {
-    flex: 2 0 auto;
     padding: 0px 4px 10px 4px;
-    // overflow: hidden;
     overflow-x: hidden;
-    // background: white;
     .el-row{
       height: 100%;
       .el-col{
         height: 100%;
-        // background: palevioletred;
       }
     }
     .grid-content {
@@ -536,20 +621,16 @@ export default {
     .bg-purple-left{
       height: 100%;
       border-top-color: #60A4E2;
-      display: flex;
-      flex-direction: column;
-
-      // background: darkcyan;
       .bg-purple-left-top{
         display: flex;
         flex-wrap: wrap;
         justify-content: space-between;
-        margin-bottom: 10px;
+        align-items: center;
+        height: 20%;
         div{
-          width: 30%;
-          height: 80px;
+          width: 32%;
+          height: 45%;
           background: #BA8E07;
-          margin-top: 10px;
           box-sizing: border-box;
           padding: 10px;
           padding-left: 24px;
@@ -571,14 +652,87 @@ export default {
         }
       }
       .bg-purple-left-map{
-        flex: 2 auto 0 ;
         border-image: url("../assets/images/home/mapBoeder.png") 32 37 repeat stretch;
         border-style: solid;
         border-width: 10px 10px;
-        // border-radius: 20px;
         height: 80%;
+        box-sizing: border-box;
+        position: relative;
+        .mapBoxtips{
+          position: absolute;
+          z-index: 11;
+          background: rgba(0, 0, 0, .5);
+          border-radius: 10px;
+          padding: 10px 20px;
+          bottom: 20px;
+          left: 20px;
+          text-align: center;
+          line-height: 1.5;
+          .num{
+            font-size: 20px;
+          }
+        }
         #mapBox{
           height: 100%;
+        }
+        .amap-info{
+              .content-window-card {
+                  position: relative;
+                  box-shadow: none;
+                  bottom: -20px;
+                  left: 0;
+                  width: auto;
+                  padding: 0;
+                  p {
+                      height: 2rem;
+                  }
+                  div.info-top {
+                      position: relative;
+                      background: none repeat scroll 0 0 #F9F9F9;
+                      border-bottom: 1px solid #CCC;
+                      text-align: center;
+                      // border-radius: 5px 5px 0 0;
+                      div {
+                          display: inline-block;
+                          // color: #00c3ff;
+                          color: #333;
+                          font-size: 14px;
+                          text-align: center;
+                          font-weight: bold;
+                          line-height: 31px;
+                          padding: 0 24px;
+                      }
+                      img {
+                          position: absolute;
+                          top: 10px;
+                          right: 4px;
+                          transition-duration: 0.25s;
+                          &:hover {
+                              box-shadow: 0px 0px 5px rgb(128, 68, 68);
+                          }
+                      }
+                  }
+                  div.info-middle {
+                      font-size: 14px;
+                      padding: 10px 6px;
+                      line-height: 20px;
+                      color: rgb(112, 112, 121);
+                  }
+                    div.info-bottom {
+                      height: 0px;
+                      width: 100%;
+                      clear: both;
+                      text-align: center;
+                      img {
+                          position: relative;
+                          z-index: 104;
+                      }
+                  }
+                  
+              }
+              .custom-info {
+                      border: solid 1px rgb(179, 168, 168);
+              }
         }
         
       }
@@ -586,11 +740,9 @@ export default {
     //--------------------------------------------------
     .bg-purple-cneter{
       height: 100%;
-      overflow: hidden;
+      background: saddlebrown;
       border-top-color: #EC7C30;
       font-family: Cambria, Cochin, Georgia, Times, 'Times New Roman', serif;
-      // display: flex;
-      // flex-direction: column;
       .bg-purple-top-content-item{
         padding: 10px;
         font-size: 18px;
@@ -609,11 +761,15 @@ export default {
           border: 1px solid #878EA3;
         }
       }
-      .bg-purple-top-content{
-        height: 764px;
-        /* 解决自定义滚动条 x 轴显示问题 */
-        .el-scrollbar__wrap{
-          overflow-x: hidden;
+      
+      .nodata{
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        height: 100%;
+        img{
+          width: 200px;
         }
       }
     }
@@ -672,14 +828,16 @@ export default {
                 .el-input__inner{
                   background: none;
                   border-color: #906B52;
+                  color: white;
                 }
               }
             }
           }
           .el-textarea__inner{
-                  background: none !important;
-                  border-color: #906B52;
-                  resize: none;
+              background: none !important;
+              border-color: #906B52;
+              resize: none;
+              color: white;
           }
           .btnbox{
             margin-top: 18px;
@@ -727,21 +885,29 @@ export default {
       }
     }
     .bg-purple-top-title{
-        background: #2B333F;
-        margin: 10px 0px;
+        background:@bgcolor;
+        box-sizing: border-box;
+        padding: 10px 0px;
         line-height: 46px;
         border-radius: 2px;
         text-align: center;
         font-size: 22px;
-        // background: darkorchid;
+        height: 8%;
+        div{
+          background: #2B333F;
+        }
     }
     .bg-purple-top-content{
-      height: 100%;
+      height: 92%;
       background: #2B333F;
-      overflow: hidden !important;
+      overflow: hidden;
+      .el-scrollbar__wrap{
+        overflow-x: hidden;
+      }
     }
    
   }
+  
 
 }
 </style>

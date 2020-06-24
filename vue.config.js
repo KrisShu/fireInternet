@@ -8,13 +8,13 @@ module.exports = {
     // 全局常量定义出，也可以是window下的实例
     'AMap':  'AMap'  // 高德地图配置
     },
-    plugins:[
-      new webpack.ProvidePlugin({
-        $:'jquery',
-        jQuery:'jquery',
-        'windows.jQuery':'jquery'
-      })
-    ]
+    // plugins:[
+    //   new webpack.ProvidePlugin({
+    //     $:'jquery',
+    //     jQuery:'jquery',
+    //     'windows.jQuery':'jquery'
+    //   })
+    // ]
 
   },
   devServer: {

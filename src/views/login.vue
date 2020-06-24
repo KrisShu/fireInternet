@@ -68,10 +68,15 @@ export default {
             this.$refs.ruleForm.validate(valid => {
                 if(valid){
                     this.$axios.post(this.$api.UserLogin,this.ruleForm).then(res=>{
-                        localStorage.setItem('fireInterLogin',1)
-                        localStorage.setItem('userinfo',JSON.stringify(res.result))
-                        this.$store.commit("setUserInfo", res.result);
-                        this.$router.push('/')
+                        if(res.result.success){
+                            localStorage.setItem('fireInterLogin',1)
+                            localStorage.setItem('userinfo',JSON.stringify(res.result))
+                            this.$store.commit("setUserInfo", res.result);
+                            this.$router.push('/')
+                        }else{
+                            this.$message.error(res.result.failCause);
+                        }
+                        
                         console.log("登录成功",res)
                     }).catch(err=>{
                         console.log("登录失败",err)
